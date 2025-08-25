@@ -40,6 +40,7 @@ class StockPage(QWidget):
         super().__init__()
         layout = QVBoxLayout()
 
+     # Form alanları
         self.txtName = QLineEdit()
         self.txtName.setPlaceholderText("Ürün adı")
         self.txtBarcode = QLineEdit()
@@ -52,11 +53,25 @@ class StockPage(QWidget):
         self.txtVat.setPlaceholderText("KDV")
         self.txtQty = QLineEdit()
         self.txtQty.setPlaceholderText("Stok adedi")
+        self.txtBarcode = QLineEdit()
+        self.txtBarcode.setPlaceholderText("Barkod okut")
 
+        # Barkod okuyucuyu bağla
+        self.scanner = BarcodeScanner(self.txtBarcode)
+        self.scanner.set_callback(self.load_product_by_barcode)
+
+        # Butonlar
         self.btnAdd = QPushButton("Ürün Ekle")
         self.btnAdd.clicked.connect(self.add_product)
 
+        self.btnUpdate = QPushButton("Ürün Güncelle")
+        self.btnUpdate.clicked.connect(self.update_product)
+
+        # Tablo
         self.table = QTableWidget()
+        self.table.cellClicked.connect(self.load_selected_product)
+
+        # Layouta ekle
         layout.addWidget(self.txtName)
         layout.addWidget(self.txtBarcode)
         layout.addWidget(self.txtCost)
@@ -64,10 +79,31 @@ class StockPage(QWidget):
         layout.addWidget(self.txtVat)
         layout.addWidget(self.txtQty)
         layout.addWidget(self.btnAdd)
+        layout.addWidget(self.btnUpdate)
         layout.addWidget(self.table)
 
         self.setLayout(layout)
         self.refresh_table()
+
+    def load_selected_product(self, row, col):
+        """Tablodan seçilen ürünü form alanlarına doldur"""
+        self.txtBarcode.setText(self.table.item(row, 1).text())
+        self.txtName.setText(self.table.item(row, 2).text())
+        self.txtCost.setText(self.table.item(row, 3).text())
+        self.txtSale.setText(self.table.item(row, 4).text())
+        self.txtVat.setText("0")  # Tabloya KDV eklemediğin için 0 olarak koydum
+        self.txtQty.setText(self.table.item(row, 5).text())  
+
+    def load_product_by_barcode(self, barcode):
+        product = stock_service.get_product_by_barcode(barcode)
+        if product:
+            self.txtName.setText(product.name)
+            self.txtCost.setText(str(product.cost_price))
+            self.txtSale.setText(str(product.sale_price))
+            self.txtVat.setText(str(product.vat_rate))
+            self.txtQty.setText(str(product.stock_quantity))
+        else:
+            QMessageBox.warning(self, "Hata", "Ürün bulunamadı!")     
 
     def add_product(self):
         # Hata kontrolü ve veri doğrulama
@@ -115,6 +151,35 @@ class StockPage(QWidget):
 
         # Tabloyu güncelle
         self.refresh_table()
+
+    def update_product(self):
+        """Formdaki verilerle seçili ürünü güncelle"""
+        try:
+            row = self.table.currentRow()
+            if row < 0:
+                QMessageBox.warning(self, "Hata", "Lütfen tabloda bir ürün seçin.")
+                return
+
+            product_id = int(self.table.item(row, 0).text())  # ID sütunu 0. kolon
+
+            # Formdan verileri oku
+            data = {
+                "name": self.txtName.text().strip(),
+                "barcode": self.txtBarcode.text().strip(),
+                "cost_price": float(self.txtCost.text()),
+                "sale_price": float(self.txtSale.text()),
+                "vat_rate": float(self.txtVat.text()),
+                "stock_quantity": int(self.txtQty.text())
+            }
+
+            # Servis çağrısı
+            stock_service.update_product(product_id, data)
+
+            QMessageBox.information(self, "Bilgi", "Ürün başarıyla güncellendi.")
+            self.refresh_table()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Hata", f"Ürün güncellenirken hata: {e}")
 
     def refresh_table(self):
         products = stock_service.list_all_products()

@@ -9,6 +9,7 @@ class Product:
     sale_price: float
     vat_rate: float
     stock_quantity: int
+    weight: float | None = None 
 
 @dataclass
 class Sale:
@@ -17,6 +18,7 @@ class Sale:
     quantity: int
     total_price: float
     date: str
+    vat_amount: float | None = None
 
 @dataclass
 class CashRecord:
