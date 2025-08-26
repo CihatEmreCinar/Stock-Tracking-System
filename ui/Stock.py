@@ -3,37 +3,89 @@ import services.stock_service as stock_service
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLineEdit, QTableWidget, QTableWidgetItem, QMessageBox
 import services.stock_service as stock_service
-from utils.barcode import BarcodeScanner  # Barkod okuyucu import edildi
+from utils.barcode import BarcodeScannerHID  # Barkod okuyucu import edildi
 
 class StockPage(QWidget):
     def __init__(self):
         super().__init__()
-        self.scanner = BarcodeScanner()  # Barkod okuyucu örneği
+        layout = QVBoxLayout()
 
-        # UI
+        # Form alanları
+        self.txtName = QLineEdit()
+        self.txtName.setPlaceholderText("Ürün adı")
         self.txtBarcode = QLineEdit()
-        self.txtBarcode.setPlaceholderText("Barkod okut")
-        self.btnScan = QPushButton("Barkod Tara")
-        self.btnScan.clicked.connect(self.scan_barcode)
+        self.txtBarcode.setPlaceholderText("Barkod (el terminali ile okut)")
+        self.txtCost = QLineEdit()
+        self.txtCost.setPlaceholderText("Maliyet")
+        self.txtSale = QLineEdit()
+        self.txtSale.setPlaceholderText("Satış fiyatı")
+        self.txtVat = QLineEdit()
+        self.txtVat.setPlaceholderText("KDV")
+        self.txtQty = QLineEdit()
+        self.txtQty.setPlaceholderText("Stok adedi")
 
-        # Diğer alanlar ve tablo tanımları...
+        # Barkod okuyucu (HID) adaptörünü QLineEdit'e bağla
+        # on_scanned → barkod gelince ne olsun? İki opsiyon:
+        # 1) Sadece bardoku kutuya koy ve bırak (butonlara sen bas)
+        # 2) Otomatik ürünü bulup formu doldur (aşağıdaki örnek)
+        self._barcode_adapter = BarcodeScannerHID(
+            self.txtBarcode,
+            on_scanned=self.load_product_by_barcode,  # dilersen None verip sadece kutuya yazdırabilirsin
+            min_length=3,
+            clear_on_scan=False  # kod textbox’ta kalsın; istersen True yap
+        )
+
+        # Butonlar
+        self.btnAdd = QPushButton("Ürün Ekle")
+        self.btnAdd.clicked.connect(self.add_product)
+
+        self.btnUpdate = QPushButton("Ürün Güncelle")
+        self.btnUpdate.clicked.connect(self.update_product)
+
+        # Tablo
+        self.table = QTableWidget()
+        self.table.cellClicked.connect(self.load_selected_product)
+
+        # Layouta ekle
+        layout.addWidget(self.txtName)
+        layout.addWidget(self.txtBarcode)
+        layout.addWidget(self.txtCost)
+        layout.addWidget(self.txtSale)
+        layout.addWidget(self.txtVat)
+        layout.addWidget(self.txtQty)
+        layout.addWidget(self.btnAdd)
+        layout.addWidget(self.btnUpdate)
+        layout.addWidget(self.table)
+
+        self.setLayout(layout)
+        self.refresh_table()
     
-    def scan_barcode(self):
+    def load_product_by_barcode(self, barcode: str):
+        """El terminalinden barkod gelince ürünü bulup formu doldur (opsiyonel)"""
         try:
-            barcode = self.scanner.read_barcode()
-            if barcode:
-                self.txtBarcode.setText(barcode)
-                # İsteğe bağlı: otomatik ürün yükleme
-                self.load_product_by_barcode(barcode)
+            product = stock_service.get_product_by_barcode(barcode)
+            if not product:
+                QMessageBox.warning(self, "Bilgi", f"Barkod bulunamadı: {barcode}")
+                # Yeni ürün girişi yapacaksan sadece barkod kutuda kalsın diye return
+                return
+            # Ürün bulundu → formu doldur
+            self.txtBarcode.setText(product.barcode)
+            self.txtName.setText(product.name)
+            self.txtCost.setText(str(product.cost_price))
+            self.txtSale.setText(str(product.sale_price))
+            self.txtVat.setText(str(product.vat_rate))
+            self.txtQty.setText(str(product.stock_quantity))
         except Exception as e:
-            QMessageBox.critical(self, "Hata", f"Barkod okuma hatası: {e}")
+            QMessageBox.critical(self, "Hata", f"Barkod yüklenemedi: {e}")
 
-    def load_product_by_barcode(self, barcode):
-        product = stock_service.get_product_by_barcode(barcode)
-        if not product:
-            QMessageBox.warning(self, "Hata", "Ürün bulunamadı!")
-            return
-        # Ürün bilgilerini UI'ya yansıt
+    def load_selected_product(self, row, col):
+        """Tablodan seçilen ürünü form alanlarına doldur"""
+        self.txtBarcode.setText(self.table.item(row, 1).text())
+        self.txtName.setText(self.table.item(row, 2).text())
+        self.txtCost.setText(self.table.item(row, 3).text())
+        self.txtSale.setText(self.table.item(row, 4).text())
+        self.txtVat.setText("0")  # İstersen tabloya KDV kolonunu da ekleyebilirsin
+        self.txtQty.setText(self.table.item(row, 5).text())
 
 class StockPage(QWidget):
     def __init__(self):
@@ -57,7 +109,7 @@ class StockPage(QWidget):
         self.txtBarcode.setPlaceholderText("Barkod okut")
 
         # Barkod okuyucuyu bağla
-        self.scanner = BarcodeScanner(self.txtBarcode)
+        self.scanner = BarcodeScannerHID(self.txtBarcode)
         self.scanner.set_callback(self.load_product_by_barcode)
 
         # Butonlar
