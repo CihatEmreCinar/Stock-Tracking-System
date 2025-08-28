@@ -40,8 +40,8 @@ class SalesHistoryPage(QWidget):
         sales = sales_service.list_sales_by_date(start, end, limit=100)
 
         self.table.setRowCount(len(sales))
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["ID", "Ürün", "Adet", "Tutar", "Tarih"])
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(["ID", "Ürün", "Adet", "Tutar", "Tarih", "KDV"])
 
         for i, s in enumerate(sales):
             for j, val in enumerate(s):
@@ -54,5 +54,6 @@ class SalesHistoryPage(QWidget):
 
         path, _ = QFileDialog.getSaveFileName(self, "Excel’e Kaydet", "", "Excel Files (*.xlsx)")
         if path:
-            df = pd.DataFrame(sales, columns=["ID", "Ürün", "Adet", "Tutar", "Tarih"])
+            df = pd.DataFrame(sales, columns=["ID", "Ürün", "Adet", "Tutar", "Tarih", "KDV"])
             df.to_excel(path, index=False)
+    
